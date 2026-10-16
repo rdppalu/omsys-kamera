@@ -22,18 +22,7 @@ video, canvas {
   border-radius: 12px;
   background: #000;
 }
-button {
-  width: 100%;
-  padding: 14px;
-  margin-top: 12px;
-  border: 0;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-}
-#ambil { background: #dc2626; color: white; }
-#ulang { background: #374151; color: white; }
+
 #status { line-height: 1.5; }
 </style>
 </head>
@@ -43,20 +32,18 @@ button {
   <p id="status">Memeriksa permintaan dari OMSYS...</p>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="canvas" hidden></canvas>
-  <button id="ambil" disabled>Ambil Foto</button>
-  <button id="ulang" hidden>Ambil Ulang</button>
+  
 </main>
 
 <script>
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const statusEl = document.getElementById('status');
-const tombolAmbil = document.getElementById('ambil');
-const tombolUlang = document.getElementById('ulang');
 
 let stream = null;
 let nomorFaktur = '';
 let fotoSiap = false;
+let sedangMengirim = false;
 
 function kirimKeOmsys(data) {
   if (!window.opener || window.opener.closed) {
@@ -112,9 +99,7 @@ async function mulaiKamera() {
 
     video.addEventListener('loadeddata', periksaVideo);
   });
-
-  tombolAmbil.disabled = false;
-
+  
   statusEl.textContent =
     'Gambar kamera siap. Pengambilan foto otomatis dimulai...';
 }
@@ -129,9 +114,11 @@ function matikanKamera() {
 
 
 async function ambilDanKirimOtomatis() {
-  try {
-    tombolAmbil.disabled = true;
+  if (sedangMengirim) return;
 
+  sedangMengirim = true;
+
+  try {
     let dataFoto = window.dataFotoSiap || '';
 
     if (!fotoSiap) {
@@ -199,28 +186,19 @@ async function ambilDanKirimOtomatis() {
 
     statusEl.textContent =
       'Foto berhasil diambil. Mengirim ke OMSYS...';
-
-    tombolAmbil.textContent = 'Mengirim Foto...';
-
+    
     kirimKeOmsys(dataFoto);
 
     statusEl.textContent =
       'Foto dikirim. Menunggu konfirmasi penyimpanan Google Drive...';
 
   } catch (e) {
+    sedangMengirim = false;
+
     statusEl.textContent =
       e.message || 'Gagal mengambil atau mengirim foto.';
-
-    tombolAmbil.textContent = 'Coba Lagi';
-    tombolAmbil.disabled = false;
   }
 }
-
-// Tombol hanya menjadi pilihan pemulihan jika proses otomatis gagal.
-tombolAmbil.addEventListener('click', function() {
-  ambilDanKirimOtomatis();
-});
-
 
 window.addEventListener('message', function(event) {
   if (event.source !== window.opener) return;
@@ -232,16 +210,11 @@ window.addEventListener('message', function(event) {
   if (event.data.success === true) {
     statusEl.textContent =
       'Foto berhasil disimpan ke Google Drive.';
-
-    tombolAmbil.textContent = 'Foto Tersimpan';
-    tombolAmbil.disabled = true;
-    tombolUlang.hidden = true;
   } else {
+    sedangMengirim = false;
+
     statusEl.textContent =
       event.data.message || 'Foto gagal disimpan.';
-  
-    tombolAmbil.textContent = 'Kirim Ulang Foto';
-    tombolAmbil.disabled = false;
   }
 });
 
@@ -264,9 +237,7 @@ if (nomorFaktur) {
     .catch(e => {
       statusEl.textContent =
         e.message || 'Kamera tidak dapat dibuka.';
-
-      tombolAmbil.textContent = 'Coba Lagi';
-      tombolAmbil.disabled = false;
+     
     });
 } else {
   statusEl.textContent =
