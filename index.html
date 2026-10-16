@@ -70,9 +70,12 @@ function kirimKeOmsys(data) {
     }, '*');
 }
 
+
 async function mulaiKamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('Akses kamera tidak tersedia. Periksa HTTPS dan izin browser.');
+    throw new Error(
+      'Akses kamera tidak tersedia. Periksa HTTPS dan izin browser.'
+    );
   }
 
   stream = await navigator.mediaDevices.getUserMedia({
@@ -87,9 +90,35 @@ async function mulaiKamera() {
   video.srcObject = stream;
   await video.play();
 
+  // Tunggu sampai video benar-benar menghasilkan gambar.
+  await new Promise((resolve, reject) => {
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      resolve();
+      return;
+    }
+
+    const batasWaktu = setTimeout(() => {
+      video.removeEventListener('loadeddata', periksaVideo);
+      reject(new Error('Kamera aktif, tetapi gambar belum tersedia.'));
+    }, 10000);
+
+    function periksaVideo() {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        clearTimeout(batasWaktu);
+        video.removeEventListener('loadeddata', periksaVideo);
+        resolve();
+      }
+    }
+
+    video.addEventListener('loadeddata', periksaVideo);
+  });
+
   tombolAmbil.disabled = false;
-  statusEl.textContent = 'Kamera aktif. Pastikan objek terlihat, lalu ambil foto.';
+
+  statusEl.textContent =
+    'Gambar kamera siap. Pengambilan foto otomatis dimulai...';
 }
+
 
 function matikanKamera() {
   if (stream) {
@@ -228,7 +257,9 @@ if (nomorFaktur) {
         'Kamera aktif. Foto akan diambil otomatis...';
 
       // Beri waktu kamera menampilkan gambar dengan stabil.
-      setTimeout(ambilDanKirimOtomatis, 1500);
+      setTimeout(() => {
+        ambilDanKirimOtomatis();
+      }, 1500);
     })
     .catch(e => {
       statusEl.textContent =
