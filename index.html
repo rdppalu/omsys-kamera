@@ -98,35 +98,48 @@ function matikanKamera() {
   }
 }
 
-tombolAmbil.addEventListener('click', async function() {
+
+async function ambilDanKirimOtomatis() {
   try {
     tombolAmbil.disabled = true;
 
+    let dataFoto = window.dataFotoSiap || '';
+
     if (!fotoSiap) {
-      if (!video.videoWidth) {
+      statusEl.textContent =
+        'Menyiapkan foto otomatis...';
+
+      if (!video.videoWidth || !video.videoHeight) {
         throw new Error('Kamera belum siap.');
       }
 
       let lebar = Math.min(1280, video.videoWidth);
-      let tinggi = Math.round(lebar * video.videoHeight / video.videoWidth);
+      let tinggi = Math.round(
+        lebar * video.videoHeight / video.videoWidth
+      );
 
       canvas.width = lebar;
       canvas.height = tinggi;
 
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, lebar, tinggi);
 
-      let dataFoto = '';
       let berhasil = false;
 
       while (lebar >= 320 && tinggi >= 240) {
         canvas.width = lebar;
         canvas.height = tinggi;
+
         ctx.drawImage(video, 0, 0, lebar, tinggi);
 
         for (const kualitas of [0.7, 0.6, 0.5]) {
-          dataFoto = canvas.toDataURL('image/jpeg', kualitas);
-          const ukuran = Math.floor((dataFoto.split(',')[1] || '').length * 3 / 4);
+          dataFoto = canvas.toDataURL(
+            'image/jpeg',
+            kualitas
+          );
+
+          const ukuran = Math.floor(
+            (dataFoto.split(',')[1] || '').length * 3 / 4
+          );
 
           if (ukuran <= 1800 * 1024) {
             berhasil = true;
@@ -141,45 +154,44 @@ tombolAmbil.addEventListener('click', async function() {
       }
 
       if (!berhasil) {
-        throw new Error('Foto gagal dikompres ke ukuran yang diizinkan.');
+        throw new Error(
+          'Foto gagal dikompres ke ukuran yang diizinkan.'
+        );
       }
 
+      window.dataFotoSiap = dataFoto;
+      fotoSiap = true;
+
       matikanKamera();
+
       video.hidden = true;
       canvas.hidden = false;
-      fotoSiap = true;
-      tombolAmbil.textContent = 'Gunakan Foto Ini';
-      tombolUlang.hidden = false;
-      statusEl.textContent = 'Periksa foto sebelum mengirim ke OMSYS.';
-      window.dataFotoSiap = dataFoto;
-      tombolAmbil.disabled = false;
-      return;
     }
 
-    statusEl.textContent = 'Mengirim foto ke OMSYS...';
-    kirimKeOmsys(window.dataFotoSiap);
-    statusEl.textContent = 'Foto dikirim ke OMSYS. Tunggu konfirmasi penyimpanan.';
-    tombolAmbil.textContent = 'Foto Terkirim';
+    statusEl.textContent =
+      'Foto berhasil diambil. Mengirim ke OMSYS...';
+
+    tombolAmbil.textContent = 'Mengirim Foto...';
+
+    kirimKeOmsys(dataFoto);
+
+    statusEl.textContent =
+      'Foto dikirim. Menunggu konfirmasi penyimpanan Google Drive...';
+
   } catch (e) {
-    statusEl.textContent = e.message || 'Gagal mengambil foto.';
+    statusEl.textContent =
+      e.message || 'Gagal mengambil atau mengirim foto.';
+
+    tombolAmbil.textContent = 'Coba Lagi';
     tombolAmbil.disabled = false;
   }
+}
+
+// Tombol hanya menjadi pilihan pemulihan jika proses otomatis gagal.
+tombolAmbil.addEventListener('click', function() {
+  ambilDanKirimOtomatis();
 });
 
-tombolUlang.addEventListener('click', async function() {
-  try {
-    fotoSiap = false;
-    window.dataFotoSiap = '';
-    video.hidden = false;
-    canvas.hidden = true;
-    tombolUlang.hidden = true;
-    tombolAmbil.textContent = 'Ambil Foto';
-    statusEl.textContent = 'Membuka kamera kembali...';
-    await mulaiKamera();
-  } catch (e) {
-    statusEl.textContent = e.message || 'Kamera tidak dapat dibuka.';
-  }
-});
 
 window.addEventListener('message', function(event) {
   if (event.source !== window.opener) return;
@@ -198,7 +210,7 @@ window.addEventListener('message', function(event) {
   } else {
     statusEl.textContent =
       event.data.message || 'Foto gagal disimpan.';
-
+  
     tombolAmbil.textContent = 'Kirim Ulang Foto';
     tombolAmbil.disabled = false;
   }
@@ -210,9 +222,21 @@ const parameter = new URLSearchParams(location.search);
 nomorFaktur = parameter.get('faktur') || '';
 
 if (nomorFaktur) {
-  mulaiKamera().catch(e => {
-    statusEl.textContent = e.message || 'Kamera tidak dapat dibuka.';
-  });
+  mulaiKamera()
+    .then(() => {
+      statusEl.textContent =
+        'Kamera aktif. Foto akan diambil otomatis...';
+
+      // Beri waktu kamera menampilkan gambar dengan stabil.
+      setTimeout(ambilDanKirimOtomatis, 1500);
+    })
+    .catch(e => {
+      statusEl.textContent =
+        e.message || 'Kamera tidak dapat dibuka.';
+
+      tombolAmbil.textContent = 'Coba Lagi';
+      tombolAmbil.disabled = false;
+    });
 } else {
   statusEl.textContent =
     'Buka halaman ini dari tombol Pengambilan Barang di OMSYS.';
