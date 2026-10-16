@@ -67,7 +67,7 @@ function kirimKeOmsys(data) {
     type: 'FOTO_PENGAMBILAN',
     nomorFaktur: nomorFaktur,
     dataFoto: data
-  }, location.origin);
+    }, '*');
 }
 
 async function mulaiKamera() {
@@ -181,20 +181,26 @@ tombolUlang.addEventListener('click', async function() {
   }
 });
 
-window.addEventListener('message', async function(event) {
-  if (event.origin !== location.origin) return;
+window.addEventListener('message', function(event) {
+  if (event.source !== window.opener) return;
 
-  if (
-    event.data?.type !== 'MULAI_FOTO_PENGAMBILAN' ||
-    !event.data.nomorFaktur
-  ) return;
+  if (event.data?.type !== 'FOTO_PENGAMBILAN_HASIL') {
+    return;
+  }
 
-  nomorFaktur = String(event.data.nomorFaktur);
+  if (event.data.success === true) {
+    statusEl.textContent =
+      'Foto berhasil disimpan ke Google Drive.';
 
-  try {
-    await mulaiKamera();
-  } catch (e) {
-    statusEl.textContent = e.message || 'Kamera tidak dapat dibuka.';
+    tombolAmbil.textContent = 'Foto Tersimpan';
+    tombolAmbil.disabled = true;
+    tombolUlang.hidden = true;
+  } else {
+    statusEl.textContent =
+      event.data.message || 'Foto gagal disimpan.';
+
+    tombolAmbil.textContent = 'Kirim Ulang Foto';
+    tombolAmbil.disabled = false;
   }
 });
 
